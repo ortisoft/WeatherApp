@@ -4,6 +4,10 @@ A Spring Boot application for displaying weather data and solar yield forecasts.
 
 Coded completely by AI with human guidance (with Cursor AI)
 
+## Live Demo
+
+Visit [weather.intellibits.de](http://weather.intellibits.de) to see the application in action.
+
 ## Development Process
 
 This application was developed through an AI-human collaboration using Cursor AI. The development process was unique:
