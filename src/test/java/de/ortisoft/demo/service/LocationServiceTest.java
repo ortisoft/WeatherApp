@@ -8,22 +8,29 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@SpringBootTest
 class LocationServiceTest {
 
-    @Mock
+    @Value("${weather.api.key}")
+    private String apiKey;
+
+    @MockBean
     private WeatherConfig weatherConfig;
 
-    @Mock
+    @MockBean
     private RestTemplate restTemplate;
 
-    @InjectMocks
+    @Autowired
     private LocationService locationService;
 
     @Test
@@ -33,7 +40,7 @@ class LocationServiceTest {
         mockResponse.setName("Berlin");
         GeoResponse[] responses = new GeoResponse[]{mockResponse};
 
-        when(weatherConfig.getKey()).thenReturn("160fc664970e11e8772f59bc9489728f");  // Echter API-Key
+        when(weatherConfig.getKey()).thenReturn(apiKey);  // API-Key aus Properties
         when(restTemplate.getForObject(anyString(), eq(GeoResponse[].class)))
             .thenReturn(responses);
 
