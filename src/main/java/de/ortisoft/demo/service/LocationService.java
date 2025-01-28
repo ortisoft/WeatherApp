@@ -13,9 +13,9 @@ public class LocationService {
     private final WeatherConfig weatherConfig;
     private final RestTemplate restTemplate;
 
-    public LocationService(WeatherConfig weatherConfig) {
+    public LocationService(WeatherConfig weatherConfig, RestTemplate restTemplate) {
         this.weatherConfig = weatherConfig;
-        this.restTemplate = new RestTemplate();
+        this.restTemplate = restTemplate;
     }
 
     public String getLocationInfo(double lat, double lon) {
