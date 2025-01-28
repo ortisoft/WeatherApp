@@ -1,0 +1,16 @@
+[Unit]
+Description=Weather App Service
+After=network.target
+
+[Service]
+User=your_service_user
+Environment="WEATHER_API_KEY=your_api_key_here"
+WorkingDirectory=/path/to/weather-app
+ExecStart=/usr/bin/java -jar weather-app.jar
+SuccessExitStatus=143
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target 

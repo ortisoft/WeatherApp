@@ -34,6 +34,14 @@ build/
 
 ### Application Properties ###
 src/main/resources/application.properties
+src/test/resources/application.properties
+!src/main/resources/application-example.properties
+
+### Startup Scripts ###
+start-weather-app.sh
+weather-app.service
+!start-weather-app-example.sh
+!weather-app-example.service
 
 *.log
 logs/

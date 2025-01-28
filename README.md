@@ -44,9 +44,38 @@ The frontend is embedded in the backend and uses vanilla JavaScript with modern 
 
 ## Setup
 
-1. Copy `src/main/resources/application-example.properties` to `src/main/resources/application.properties`
-2. Enter your OpenWeatherMap API key in `application.properties`
-3. Start the application with `./mvnw spring-boot:run`
+1. Copy the example configuration files:
+   ```bash
+   # Properties
+   cp src/main/resources/application-example.properties src/main/resources/application.properties
+   cp src/test/resources/application-example.properties src/test/resources/application.properties
+   
+   # Startup scripts
+   cp start-weather-app-example.sh start-weather-app.sh
+   cp weather-app-example.service weather-app.service
+   ```
+
+2. Enter your OpenWeatherMap API key in:
+   - `application.properties`
+   - `application-test.properties`
+   - `start-weather-app.sh`
+   - `weather-app.service`
+
+3. Adjust paths and user settings in `weather-app.service`
+
+4. Start the application:
+   ```bash
+   chmod +x start-weather-app.sh
+   ./start-weather-app.sh
+   ```
+
+For systemd service installation:
+```bash
+sudo cp weather-app.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable weather-app
+sudo systemctl start weather-app
+```
 
 ## Features
 
