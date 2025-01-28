@@ -1,0 +1,13 @@
+[Unit]
+Description=Weather App Service
+After=network.target
+
+[Service]
+Type=simple
+User=intellibits.de_gx9eaj3h4jd
+ExecStart=/var/www/vhosts/system/weather.intellibits.de/app/start-weather-app.sh
+Restart=always
+Environment=WEATHER_API_KEY=160fc664970e11e8772f59bc9489728f
+
+[Install]
+WantedBy=multi-user.target 
