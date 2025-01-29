@@ -91,6 +91,38 @@ class WeatherServiceTest {
         assertFalse(result.contains("Fehler"), "Should not contain 'Fehler'");
     }
 
+    @Test
+    void shouldCalculateHourlyYieldWithDefaultParameters() {
+        // Arrange
+        WeatherService service = new WeatherService(weatherConfig, locationService);
+        double[] testRadiations = {0, 100, 500, 1000};  // W/m²
+        
+        // Standardwerte für beide Anlagen
+        double efficiency1 = 20.0;  // 20%
+        double losses1 = 14.0;      // 14%
+        double efficiency2 = 20.0;  // 20%
+        double losses2 = 14.0;      // 14%
+        
+        // Expected results (vorher berechnet)
+        double[] expectedYields = {
+            0.000,      // Bei 0 W/m²
+            0.017,      // Bei 100 W/m²
+            0.086,      // Bei 500 W/m²
+            0.172       // Bei 1000 W/m²
+        };
+        
+        // Act & Assert
+        for (int i = 0; i < testRadiations.length; i++) {
+            double yield1 = service.calculateHourlyYield(testRadiations[i], efficiency1, losses1);
+            double yield2 = service.calculateHourlyYield(testRadiations[i], efficiency2, losses2);
+            
+            assertEquals(expectedYields[i], yield1, 0.001, 
+                String.format("Yield1 bei %f W/m² sollte %f sein", testRadiations[i], expectedYields[i]));
+            assertEquals(expectedYields[i], yield2, 0.001, 
+                String.format("Yield2 bei %f W/m² sollte %f sein", testRadiations[i], expectedYields[i]));
+        }
+    }
+
     private WeatherResponse createMockWeatherResponse() {
         WeatherResponse response = new WeatherResponse();
         

@@ -418,12 +418,23 @@ public class WeatherService {
 
     @Deprecated
     public String getSolarData(double lat, double lon, double kwp, int azimuth, int tilt) {
-        return getSolarData(lat, lon, kwp, azimuth, tilt, kwp, azimuth, tilt);
+        return getSolarData(lat, lon, 
+            kwp, azimuth, tilt, 20.0, 14.0,  // Standardwerte für efficiency und losses
+            kwp, azimuth, tilt, 20.0, 14.0); // Gleiche Werte für zweite Anlage
     }
 
+    @Deprecated
     public String getSolarData(double lat, double lon, 
                              double kwp1, int azimuth1, int tilt1,
                              double kwp2, int azimuth2, int tilt2) {
+        return getSolarData(lat, lon,
+            kwp1, azimuth1, tilt1, 20.0, 14.0,
+            kwp2, azimuth2, tilt2, 20.0, 14.0);
+    }
+
+    public String getSolarData(double lat, double lon, 
+                             double kwp1, int azimuth1, int tilt1, double efficiency1, double losses1,
+                             double kwp2, int azimuth2, int tilt2, double efficiency2, double losses2) {
         try {
             StringBuilder solarInfo = new StringBuilder();
             
@@ -441,120 +452,85 @@ public class WeatherService {
             double currentCloudCover = currentWeather != null && currentWeather.getClouds() != null ? 
                 currentWeather.getClouds().getAll() : 0;
 
-            // Erste Format-String für die Einstellungen
-            solarInfo.append(String.format("""
+            // Berechnungsfaktoren anpassen
+            double factor1 = calculateSolarFactor(azimuth1, tilt1) * (efficiency1/100.0) * (1.0 - losses1/100.0);
+            double factor2 = calculateSolarFactor(azimuth2, tilt2) * (efficiency2/100.0) * (1.0 - losses2/100.0);
+
+            solarInfo.append("""
                 <div class="category">
-                    <div class="settings">
-                        <div class="settings-grid">
-                            <div class="setting-label"></div>
-                            <div class="setting-field">Anlage 1</div>
-                            <div class="setting-field">Anlage 2</div>
-                            
-                            <div class="setting-label">Anlagengröße:</div>
-                            <div class="setting-field">
-                                <input type="number" id="kwp1" value="%.1f" step="0.1" min="0.1"> kWp
-                            </div>
-                            <div class="setting-field">
-                                <input type="number" id="kwp2" value="%.1f" step="0.1" min="0.1"> kWp
-                            </div>
-                            
-                            <div class="setting-label">Ausrichtung:</div>
-                            <div class="setting-field">
-                                <select id="azimuth1">
-                                    <option value="90"%s>Ost (90°)</option>
-                                    <option value="135"%s>Südost (135°)</option>
-                                    <option value="180"%s>Süd (180°)</option>
-                                    <option value="225"%s>Südwest (225°)</option>
-                                    <option value="270"%s>West (270°)</option>
-                                </select>
-                            </div>
-                            <div class="setting-field">
-                                <select id="azimuth2">
-                                    <option value="90"%s>Ost (90°)</option>
-                                    <option value="135"%s>Südost (135°)</option>
-                                    <option value="180"%s>Süd (180°)</option>
-                                    <option value="225"%s>Südwest (225°)</option>
-                                    <option value="270"%s>West (270°)</option>
-                                </select>
-                            </div>
-                            
-                            <div class="setting-label">Neigung:</div>
-                            <div class="setting-field">
-                                <input type="number" id="tilt1" value="%d" min="0" max="90" step="1">°
-                            </div>
-                            <div class="setting-field">
-                                <input type="number" id="tilt2" value="%d" min="0" max="90" step="1">°
-                            </div>
-                        </div>
-                        
-                        <button onclick="updateWeather()">Aktualisieren</button>
-                    </div>
-                    
-                    <div class="current-solar">
-                        <h3>Aktuelle Prognose</h3>
-                        <table>
-                            <tr>
-                                <th>Anlage</th>
-                                <th>Strahlung</th>
-                                <th>Momentanleistung</th>
-                                <th>Tagesertrag bisher</th>
-                            </tr>
-                            <tr>
-                                <td>Anlage 1 (%.1f kWp)</td>
-                                <td>%.0f W/m²</td>
-                                <td>%.1f kW</td>
-                                <td>%.1f kWh</td>
-                            </tr>
-                            <tr>
-                                <td>Anlage 2 (%.1f kWp)</td>
-                                <td>%.0f W/m²</td>
-                                <td>%.1f kW</td>
-                                <td>%.1f kWh</td>
-                            </tr>
-                            <tr class="total-row">
-                                <td>Gesamt</td>
-                                <td>Ø %.0f W/m²</td>
-                                <td>%.1f kW</td>
-                                <td>%.1f kWh</td>
-                            </tr>
-                        </table>
-                    </div>
-                    
-                    <div class="solar-forecast">
-                        <h3>Prognose für die nächsten Tage*</h3>
-                        <div class="forecast-days">
-            """,
-            // Anlagenparameter
-            kwp1, kwp2,
-            azimuth1 == 90 ? " selected" : "",
-            azimuth1 == 135 ? " selected" : "",
-            azimuth1 == 180 ? " selected" : "",
-            azimuth1 == 225 ? " selected" : "",
-            azimuth1 == 270 ? " selected" : "",
-            azimuth2 == 90 ? " selected" : "",
-            azimuth2 == 135 ? " selected" : "",
-            azimuth2 == 180 ? " selected" : "",
-            azimuth2 == 225 ? " selected" : "",
-            azimuth2 == 270 ? " selected" : "",
-            tilt1, tilt2,
-            // Aktuelle Prognose Parameter
-            kwp1,
-            getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1),
-            getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1, kwp1),
-            getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth1, tilt1, kwp1, LocalDateTime.now().getHour()),
+                """);
+            
+            // Füge Einstellungen hinzu
+            solarInfo.append(createSolarSettingsHtml());
+            
+            // Aktuelle Prognose
+            solarInfo.append("""
+                <div class="current-solar">
+                    <h3>Aktuelle Prognose*</h3>
+                    <table>
+                        <tr>
+                            <th>Anlage</th>
+                            <th>Strahlung</th>
+                            <th>Momentanleistung</th>
+                            <th>Tagesertrag bisher</th>
+                        </tr>
+                """);
+
+            // Aktuelle Werte für Anlage 1
+            solarInfo.append(String.format("""
+                <tr>
+                    <td>Anlage 1 (%.1f kWp)</td>
+                    <td>%.0f W/m²</td>
+                    <td>%.1f kW</td>
+                    <td>%.1f kWh</td>
+                </tr>
+                """,
+                kwp1,
+                getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1),
+                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1, kwp1),
+                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth1, tilt1, kwp1, efficiency1, losses1, LocalDateTime.now().getHour())
+            ));
+
             // Aktuelle Werte für Anlage 2
-            kwp2,
-            getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2),
-            getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2, kwp2),
-            getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth2, tilt2, kwp2, LocalDateTime.now().getHour()),
+            solarInfo.append(String.format("""
+                <tr>
+                    <td>Anlage 2 (%.1f kWp)</td>
+                    <td>%.0f W/m²</td>
+                    <td>%.1f kW</td>
+                    <td>%.1f kWh</td>
+                </tr>
+                """,
+                kwp2,
+                getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2),
+                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2, kwp2),
+                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth2, tilt2, kwp2, efficiency2, losses2, LocalDateTime.now().getHour())
+            ));
+
             // Gesamtwerte
-            (getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1) +
-             getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2)) / 2.0,
-            getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1, kwp1) +
-            getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2, kwp2),
-            getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth1, tilt1, kwp1, LocalDateTime.now().getHour()) +
-            getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth2, tilt2, kwp2, LocalDateTime.now().getHour())
-        ));
+            solarInfo.append(String.format("""
+                <tr class="total-row">
+                    <td>Gesamt</td>
+                    <td>Ø %.0f W/m²</td>
+                    <td>%.1f kW</td>
+                    <td>%.1f kWh</td>
+                </tr>
+                </table>
+                </div>
+                """,
+                (getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1) +
+                 getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2)) / 2.0,
+                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1, kwp1) +
+                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2, kwp2),
+                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth1, tilt1, kwp1, efficiency1, losses1, LocalDateTime.now().getHour()) +
+                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth2, tilt2, kwp2, efficiency2, losses2, LocalDateTime.now().getHour())
+            ));
+
+            // Füge Vorhersage hinzu
+            solarInfo.append("""
+                <div class="solar-forecast">
+                    <h3>Prognose für die nächsten Tage*</h3>
+                    <div class="forecast-days">
+                """);
 
             // Vorhersagedaten abrufen
             String forecastUrl = UriComponentsBuilder.fromUriString(FORECAST_API_URL)
@@ -590,14 +566,13 @@ public class WeatherService {
                         
                         double maxRadiation = calculateHourlyRadiation(lat, date, 12, avgCloudCover, azimuth1, tilt1);
                         double avgRadiation = calculateAverageRadiation(lat, date, avgCloudCover, azimuth1, tilt1);
-                        double dailyYield1 = calculateDailyYield(lat, lon, avgCloudCover, date, azimuth1, tilt1);
-                        double dailyYield2 = calculateDailyYield(lat, lon, avgCloudCover, date, azimuth2, tilt2);
+                        double dailyYield1 = calculateDailyYield(lat, lon, avgCloudCover, date, azimuth1, tilt1, kwp1, efficiency1, losses1);
+                        double dailyYield2 = calculateDailyYield(lat, lon, avgCloudCover, date, azimuth2, tilt2, kwp2, efficiency2, losses2);
                         
                         String dayName = date.format(DateTimeFormatter.ofPattern("EEEE", Locale.GERMAN));
                         String dateStr = date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
                         
-                        // Zweiter Format-String für die Tagesprognose
-                        String dailyForecast = String.format("""
+                        solarInfo.append(String.format("""
                             <div class="forecast-day">
                                 <div class="day-summary" onclick="toggleDetails('solar-%s')">
                                     <div class="day-header">
@@ -637,20 +612,38 @@ public class WeatherService {
                             (dailyYield1 * kwp1) + (dailyYield2 * kwp2),
                             date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
                             generateHourlyRows(lat, date, avgCloudCover, 
-                                kwp1, azimuth1, tilt1, 
-                                kwp2, azimuth2, tilt2)
-                        );
-                            
-                        solarInfo.append(dailyForecast);
+                                kwp1, azimuth1, tilt1, efficiency1, losses1,
+                                kwp2, azimuth2, tilt2, efficiency2, losses2)
+                        ));
                     });
             }
-            
+
             solarInfo.append("""
-                        </div>
                     </div>
                 </div>
+                <div class="footnote" style="margin-top: 20px; font-size: 0.9em; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                    * Berechnungsgrundlagen der Solarprognose:
+                    <ul>
+                        <li>Strahlung (W/m²) = Grundstrahlung × cos(Sonnenwinkel) × (1 - Bewölkung/100 × 0.75)
+                            <ul>
+                                <li>Grundstrahlung: Theoretische maximale Strahlung bei klarem Himmel (ca. 1000 W/m²)</li>
+                                <li>Bewölkung: Aus OpenWeatherMap-API (0-100%), reduziert die Strahlung um bis zu 75%</li>
+                                <li>Ausrichtung (Azimut): 180° (Süd) ist optimal, Ost/West reduziert die effektive Strahlung um bis zu 30%</li>
+                                <li>Neigung: 35° ist optimal, Abweichungen reduzieren die effektive Strahlung um bis zu 20%</li>
+                            </ul>
+                        </li>
+                        <li>Anlagenertrag (kWh) = Strahlung × Anlagengröße × Wirkungsgrad × (1 - Verluste) × Zeit
+                            <ul>
+                                <li>Anlagengröße: kWp (Kilowatt Peak) bestimmt die maximale Leistung (1 kWp ≈ 5 m² Modulfläche bei 200 Wp/m²)</li>
+                                <li>Wirkungsgrad: Moduleffizienz in % (typisch 15-22%)</li>
+                                <li>Systemverluste: Kabel, Wechselrichter, Verschmutzung etc. (typisch 10-20%)</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                </div>
                 """);
-            
+
             return solarInfo.toString();
         } catch (Exception e) {
             return String.format("<p>Fehler beim Abrufen der Solardaten: %s</p>", e.getMessage());
@@ -724,24 +717,12 @@ public class WeatherService {
         return Math.max(0, cosIncidence);
     }
 
-    private double calculateHourlyYield(double radiation) {
+    public double calculateHourlyYield(double radiation, double efficiency, double losses) {
         // 1. Umrechnung von W/m² in kWh/m²
-        // Eine Stunde = 1/1000 kWh/W (da 1000W = 1kW und wir pro Stunde rechnen)
-        double kwhPerM2 = radiation / 1000.0;  // Umrechnung W -> kW und pro Stunde
+        double kwhPerM2 = radiation / 1000.0;  // Eine Stunde = 1/1000 kWh/W
         
-        // 2. Umrechnung von kWh/m² in kWh/kWp
-        // "0,2 Kilowatt-Peak pro m²" bedeutet:
-        // 1 m² Modulfläche erzeugt 0,2 kWp, also 1 kWp benötigt 5 m² Modulfläche
-        double kwhPerKwp = kwhPerM2 * 5.0;  // Umrechnung auf kWh/kWp
-        
-        // 3. Wirkungsgrad und Verluste
-        double inverterEfficiency = 0.96;  // 96% Wechselrichterwirkungsgrad
-        double systemLosses = 0.90;        // 10% Verluste (Kabel, etc.)
-        
-        // Gesamteffizienz (Modulwirkungsgrad ist bereits in der kWp-Angabe enthalten)
-        double totalEfficiency = inverterEfficiency * systemLosses;
-        
-        return kwhPerKwp * totalEfficiency;
+        // 2. Anwendung von Wirkungsgrad und Verlusten
+        return kwhPerM2 * (efficiency/100.0) * (1.0 - losses/100.0);
     }
 
     private double calculateHourlyRadiation(double lat, LocalDate date, int hour, double cloudCover, int azimuth, int tilt) {
@@ -773,11 +754,12 @@ public class WeatherService {
         return maxRadiation * cloudFactor * orientationFactor * tempFactor;
     }
 
-    private double calculateDailyYield(double lat, double lon, double avgCloudCover, LocalDate date, int azimuth, int tilt) {
+    private double calculateDailyYield(double lat, double lon, double avgCloudCover, LocalDate date, 
+                                     int azimuth, int tilt, double kwp, double efficiency, double losses) {
         double dailyYield = 0;
         for (int hour = 0; hour < 24; hour++) {
             double hourlyRadiation = calculateHourlyRadiation(lat, date, hour, avgCloudCover, azimuth, tilt);
-            dailyYield += calculateHourlyYield(hourlyRadiation);
+            dailyYield += calculateHourlyYield(hourlyRadiation, efficiency, losses) * kwp;
         }
         return dailyYield;
     }
@@ -1052,7 +1034,7 @@ public class WeatherService {
                         <button class="tab" onclick="openTab('solar')">☀️ Solarertrag</button>
                     </div>
                     
-                    <div id="location" class="tab-content active">
+                    <div id="location-tab" class="tab-content active">
                         <div class="location-options">
                             <div class="location-select">
                                 <input type="text" id="city" placeholder="Stadt eingeben (z.B. Berlin)" onkeypress="handleKeyPress(event)">
@@ -1068,11 +1050,11 @@ public class WeatherService {
                         </div>
                     </div>
                     
-                    <div id="weather" class="tab-content">
+                    <div id="weather-tab" class="tab-content">
                         <div id="weather-data"></div>
                     </div>
                     
-                    <div id="solar" class="tab-content">
+                    <div id="solar-tab" class="tab-content">
                         <div id="solar-data"></div>
                     </div>
                 </div>
@@ -1082,54 +1064,71 @@ public class WeatherService {
                 
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                 <script>
-                    // Im JavaScript-Teil, vor der loadWeatherData Funktion:
+                    // Am Anfang des JavaScript-Teils, wo die anderen Variablen definiert sind:
                     let lastLat, lastLon;
                     let currentKwp1 = 4.8, currentKwp2 = 4.8;
-                    let azimuth1 = 90, azimuth2 = 270;
-                    let tilt1 = 18, tilt2 = 18;
+                    let currentEfficiency1 = 20.0, currentEfficiency2 = 20.0;  // Neue Variablen
+                    let currentLosses1 = 14.0, currentLosses2 = 14.0;         // Neue Variablen
 
                     // Im JavaScript-Teil, füge eine Variable für den aktuellen Tab hinzu und aktualisiere die openTab-Funktion:
                     let currentTab = 'location';  // Initialisiere mit dem Standard-Tab
 
                     function openTab(tabName) {
-                        // Aktualisiere den aktuellen Tab
-                        currentTab = tabName;
+                        // Alle Tab-Inhalte ausblenden
+                        const tabContents = document.getElementsByClassName('tab-content');
+                        for (let content of tabContents) {
+                            content.classList.remove('active');
+                        }
                         
-                        // Hide all tabs
-                        document.querySelectorAll('.tab-content').forEach(tab => {
+                        // Alle Tab-Buttons deaktivieren
+                        const tabs = document.getElementsByClassName('tab');
+                        for (let tab of tabs) {
                             tab.classList.remove('active');
-                        });
-                        document.querySelectorAll('.tab').forEach(tab => {
-                            tab.classList.remove('active');
-                        });
+                        }
                         
-                        // Show selected tab
-                        document.getElementById(tabName).classList.add('active');
-                        document.querySelector(`.tab[onclick="openTab('${tabName}')"]`).classList.add('active');
+                        // Gewählten Tab und Content aktivieren
+                        document.getElementById(tabName + '-tab').classList.add('active');
+                        const clickedTab = document.querySelector(`button[onclick="openTab('${tabName}')"]`);
+                        if (clickedTab) {
+                            clickedTab.classList.add('active');
+                        }
                     }
+
+                    // Initial den Location-Tab öffnen
+                    document.addEventListener('DOMContentLoaded', function() {
+                        openTab('location');
+                    });
 
                     function loadWeatherData(lat, lon, kwp1 = 4.8, kwp2 = 4.8) {
                         // Speichere die aktuellen Werte
                         window.lastLat = lat;
                         window.lastLon = lon;
-                        window.currentKwp1 = kwp1;
-                        window.currentKwp2 = kwp2;
                         
-                        // Hole die aktuellen Anlagenparameter
+                        // Hole die aktuellen Anlagenparameter mit Standardwerten
                         const azimuth1 = document.getElementById('azimuth1')?.value || 90;
                         const tilt1 = document.getElementById('tilt1')?.value || 18;
                         const azimuth2 = document.getElementById('azimuth2')?.value || 270;
                         const tilt2 = document.getElementById('tilt2')?.value || 18;
+                        const efficiency1 = document.getElementById('efficiency1')?.value || window.currentEfficiency1 || 20.0;
+                        const efficiency2 = document.getElementById('efficiency2')?.value || window.currentEfficiency2 || 20.0;
+                        const losses1 = document.getElementById('losses1')?.value || window.currentLosses1 || 14.0;
+                        const losses2 = document.getElementById('losses2')?.value || window.currentLosses2 || 14.0;
+
+                        // Aktualisiere die globalen Werte
+                        window.currentKwp1 = kwp1;
+                        window.currentKwp2 = kwp2;
+                        window.currentEfficiency1 = efficiency1;
+                        window.currentEfficiency2 = efficiency2;
+                        window.currentLosses1 = losses1;
+                        window.currentLosses2 = losses2;
 
                         const clientTime = new Date();
                         const clientOffset = -clientTime.getTimezoneOffset();
-                        
                         const clientTimeISO = clientTime.toISOString();
-                        const clientOffsetISO = clientOffset.toString();
 
-                        fetch(`/weather?lat=${lat}&lon=${lon}&kwp1=${kwp1}&azimuth1=${azimuth1}&tilt1=${tilt1}
-                            &kwp2=${kwp2}&azimuth2=${azimuth2}&tilt2=${tilt2}
-                            &clientTime=${clientTimeISO}&clientOffset=${clientOffsetISO}`)
+                        fetch(`/weather?lat=${lat}&lon=${lon}&clientTime=${clientTimeISO}&clientOffset=${clientOffset}&` +
+                              `kwp1=${kwp1}&azimuth1=${azimuth1}&tilt1=${tilt1}&efficiency1=${efficiency1}&losses1=${losses1}&` +
+                              `kwp2=${kwp2}&azimuth2=${azimuth2}&tilt2=${tilt2}&efficiency2=${efficiency2}&losses2=${losses2}`)
                             .then(response => {
                                 console.log('Response Status:', response.status);
                                 return response.text();
@@ -1191,16 +1190,24 @@ public class WeatherService {
                                 document.getElementById('loading').style.display = 'none';
                                 document.getElementById('error').style.display = 'none';
                                 
-                                // Wechsle nur zum Wetter-Tab, wenn wir nicht von den Solar-Einstellungen kommen
-                                if (!currentTab.includes('solar')) {
-                                    openTab('weather');
+                                // Bleibe im aktuellen Tab
+                                const currentTabButton = document.querySelector('.tab.active');
+                                if (currentTabButton) {
+                                    const tabName = currentTabButton.getAttribute('onclick').match(/'([^']+)'/)[1];
+                                    openTab(tabName);
                                 }
                                 
                                 // Aktualisiere die Eingabefelder
                                 const kwp1Input = document.getElementById('kwp1');
                                 const kwp2Input = document.getElementById('kwp2');
-                                if (kwp1Input) kwp1Input.value = window.currentKwp1;
-                                if (kwp2Input) kwp2Input.value = window.currentKwp2;
+                                if (kwp1Input) {
+                                    kwp1Input.value = window.currentKwp1;
+                                    window.currentKwp1 = kwp1;
+                                }
+                                if (kwp2Input) {
+                                    kwp2Input.value = window.currentKwp2;
+                                    window.currentKwp2 = kwp2;
+                                }
                                 const azimuth1Select = document.getElementById('azimuth1');
                                 const tilt1Input = document.getElementById('tilt1');
                                 const azimuth2Select = document.getElementById('azimuth2');
@@ -1210,6 +1217,29 @@ public class WeatherService {
                                 if (tilt1Input) tilt1Input.value = tilt1;
                                 if (azimuth2Select) azimuth2Select.value = azimuth2;
                                 if (tilt2Input) tilt2Input.value = tilt2;
+
+                                // Nach den bestehenden Eingabefeld-Updates:
+                                const efficiency1Input = document.getElementById('efficiency1');
+                                const efficiency2Input = document.getElementById('efficiency2');
+                                const losses1Input = document.getElementById('losses1');
+                                const losses2Input = document.getElementById('losses2');
+
+                                if (efficiency1Input) {
+                                    efficiency1Input.value = window.currentEfficiency1;
+                                    window.currentEfficiency1 = efficiency1;
+                                }
+                                if (efficiency2Input) {
+                                    efficiency2Input.value = window.currentEfficiency2;
+                                    window.currentEfficiency2 = efficiency2;
+                                }
+                                if (losses1Input) {
+                                    losses1Input.value = window.currentLosses1;
+                                    window.currentLosses1 = losses1;
+                                }
+                                if (losses2Input) {
+                                    losses2Input.value = window.currentLosses2;
+                                    window.currentLosses2 = losses2;
+                                }
                             })
                             .catch(error => {
                                 console.error('Fehler beim Laden der Daten:', error);
@@ -1289,49 +1319,26 @@ public class WeatherService {
                     }
 
                     function updateWeather() {
-                        document.getElementById('loading').style.display = 'block';
-                        document.getElementById('error').style.display = 'none';
-                        
-                        // Hole die aktuellen Werte der Anlagenparameter
-                        const kwp1 = document.getElementById('kwp1')?.value || 9.6;
-                        const kwp2 = document.getElementById('kwp2')?.value || 9.6;
-                        const azimuth1 = document.getElementById('azimuth1')?.value || 90;
-                        const azimuth2 = document.getElementById('azimuth2')?.value || 90;
-                        const tilt1 = document.getElementById('tilt1')?.value || 18;
-                        const tilt2 = document.getElementById('tilt2')?.value || 18;
-                        
-                        // Verwende die letzten bekannten Koordinaten oder hole neue
-                        if (window.lastLat && window.lastLon) {
-                            loadWeatherData(window.lastLat, window.lastLon, kwp1, kwp2);
-                        } else if (navigator.geolocation) {
-                            navigator.geolocation.getCurrentPosition(
-                                position => {
-                                    window.lastLat = position.coords.latitude;
-                                    window.lastLon = position.coords.longitude;
-                                    loadWeatherData(position.coords.latitude, position.coords.longitude, kwp1, kwp2);
-                                },
-                                handleError,
-                                {
-                                    enableHighAccuracy: true,
-                                    timeout: 5000,
-                                    maximumAge: 0
-                                }
-                            );
-                        } else {
-                            showError('Geolokation wird von Ihrem Browser nicht unterstützt.');
+                        if (!marker) {
+                            console.error('Kein Standort ausgewählt');
+                            return;
                         }
-                    }
+                        
+                        const lat = marker.getLatLng().lat;
+                        const lng = marker.getLatLng().lng;
+                        const kwp1 = document.getElementById('kwp1').value;
+                        const kwp2 = document.getElementById('kwp2').value;
+                        const azimuth1 = document.getElementById('azimuth1').value;
+                        const azimuth2 = document.getElementById('azimuth2').value;
+                        const tilt1 = document.getElementById('tilt1').value;
+                        const tilt2 = document.getElementById('tilt2').value;
+                        const efficiency1 = document.getElementById('efficiency1').value;
+                        const efficiency2 = document.getElementById('efficiency2').value;
+                        const losses1 = document.getElementById('losses1').value;
+                        const losses2 = document.getElementById('losses2').value;
 
-                    function handleError(error) {
-                        console.log('Standortermittlung nicht möglich, verwende Berlin als Standard');
-                        loadWeatherData(coordinates['berlin'].lat, coordinates['berlin'].lon, window.currentKwp1 || 9.6, window.currentKwp2 || 9.6);
-                    }
-
-                    function showError(message) {
-                        const errorDiv = document.getElementById('error');
-                        errorDiv.innerHTML = message;
-                        errorDiv.style.display = 'block';
-                        document.getElementById('loading').style.display = 'none';
+                        // Lade die kompletten Wetterdaten neu
+                        loadWeatherData(lat, lng, kwp1, kwp2, azimuth1, azimuth2, tilt1, tilt2, efficiency1, efficiency2, losses1, losses2);
                     }
 
                     // Karte initialisieren
@@ -1371,15 +1378,15 @@ public class WeatherService {
                     }
                     
                     // Klick-Handler für die Karte
-                    let clickMarker = null;
+                    let marker = L.marker([51.165691, 10.451526]).addTo(map);
                     map.on('click', function(e) {
                         const lat = e.latlng.lat;
                         const lon = e.latlng.lng;
                         
-                        if (clickMarker) {
-                            map.removeLayer(clickMarker);
+                        if (marker) {
+                            map.removeLayer(marker);
                         }
-                        clickMarker = L.marker([lat, lon])
+                        marker = L.marker([lat, lon])
                             .addTo(map)
                             .bindPopup('Ausgewählter Standort')
                             .openPopup();
@@ -1493,8 +1500,8 @@ public class WeatherService {
     }
 
     private String generateHourlyRows(double lat, LocalDate date, double avgCloudCover,
-                                    double kwp1, int azimuth1, int tilt1,
-                                    double kwp2, int azimuth2, int tilt2) {
+                                    double kwp1, int azimuth1, int tilt1, double efficiency1, double losses1,
+                                    double kwp2, int azimuth2, int tilt2, double efficiency2, double losses2) {
         StringBuilder rows = new StringBuilder();
         for (int hour = 0; hour < 24; hour++) {
             double sunHeight = calculateSunHeight(lat, date, hour);
@@ -1502,8 +1509,8 @@ public class WeatherService {
                 double hourlyRadiation1 = calculateHourlyRadiation(lat, date, hour, avgCloudCover, azimuth1, tilt1);
                 double hourlyRadiation2 = calculateHourlyRadiation(lat, date, hour, avgCloudCover, azimuth2, tilt2);
                 
-                double hourlyYield1 = calculateHourlyYield(hourlyRadiation1);
-                double hourlyYield2 = calculateHourlyYield(hourlyRadiation2);
+                double hourlyYield1 = calculateHourlyYield(hourlyRadiation1, efficiency1, losses1);
+                double hourlyYield2 = calculateHourlyYield(hourlyRadiation2, efficiency2, losses2);
                 
                 // Berechne min/max/avg Strahlung für die aktuelle Stunde
                 double baseRadiation = calculateHourlyRadiation(lat, date, hour, avgCloudCover, 180, 35);
@@ -1559,11 +1566,11 @@ public class WeatherService {
     }
 
     private double getCurrentDayYield(double lat, LocalDate clientDate, double cloudCover, 
-                                    int azimuth, int tilt, double kwp, int clientHour) {
+                                    int azimuth, int tilt, double kwp, double efficiency, double losses, int clientHour) {
         double yield = 0;
         for (int hour = 0; hour <= clientHour; hour++) {
             double radiation = calculateHourlyRadiation(lat, clientDate, hour, cloudCover, azimuth, tilt);
-            yield += calculateHourlyYield(radiation) * kwp;
+            yield += calculateHourlyYield(radiation, efficiency, losses) * kwp;
         }
         return yield;
     }
@@ -1577,5 +1584,87 @@ public class WeatherService {
     private double getCurrentRadiation(double lat, LocalDate clientDate, int clientHour, 
                                      double cloudCover, int azimuth, int tilt) {
         return calculateHourlyRadiation(lat, clientDate, clientHour, cloudCover, azimuth, tilt);
+    }
+
+    private String createSolarSettingsHtml() {
+        return """
+            <div class="settings">
+                <div class="settings-grid">
+                    <div class="setting-label"></div>
+                    <div class="setting-field">Anlage 1</div>
+                    <div class="setting-field">Anlage 2</div>
+
+                    <div class="setting-label">Anlagengröße:</div>
+                    <div class="setting-field">
+                        <input type="number" id="kwp1" value="4.8" step="0.1" min="0.1"> kWp
+                    </div>
+                    <div class="setting-field">
+                        <input type="number" id="kwp2" value="4.8" step="0.1" min="0.1"> kWp
+                    </div>
+
+                    <div class="setting-label">Ausrichtung:</div>
+                    <div class="setting-field">
+                        <select id="azimuth1">
+                            <option value="90">Ost (90°)</option>
+                            <option value="135">Südost (135°)</option>
+                            <option value="180" selected>Süd (180°)</option>
+                            <option value="225">Südwest (225°)</option>
+                            <option value="270">West (270°)</option>
+                        </select>
+                    </div>
+                    <div class="setting-field">
+                        <select id="azimuth2">
+                            <option value="90">Ost (90°)</option>
+                            <option value="135">Südost (135°)</option>
+                            <option value="180">Süd (180°)</option>
+                            <option value="225">Südwest (225°)</option>
+                            <option value="270" selected>West (270°)</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-label">Neigung:</div>
+                    <div class="setting-field">
+                        <input type="number" id="tilt1" value="18" min="0" max="90" step="1">°
+                    </div>
+                    <div class="setting-field">
+                        <input type="number" id="tilt2" value="18" min="0" max="90" step="1">°
+                    </div>
+
+                    <div class="setting-label">Wirkungsgrad:</div>
+                    <div class="setting-field">
+                        <input type="number" id="efficiency1" value="20.0" min="1" max="30" step="0.1">%
+                    </div>
+                    <div class="setting-field">
+                        <input type="number" id="efficiency2" value="20.0" min="1" max="30" step="0.1">%
+                    </div>
+
+                    <div class="setting-label">Systemverluste:</div>
+                    <div class="setting-field">
+                        <input type="number" id="losses1" value="14.0" min="0" max="40" step="0.1">%
+                    </div>
+                    <div class="setting-field">
+                        <input type="number" id="losses2" value="14.0" min="0" max="40" step="0.1">%
+                    </div>
+                </div>
+
+                <button onclick="updateWeather()">Aktualisieren</button>
+            </div>
+            """;
+    }
+
+    private double calculateSolarFactor(int azimuth, int tilt) {
+        // Optimale Ausrichtung ist Süd (180°) mit 35° Neigung
+        double optimalAzimuth = 180.0;
+        double optimalTilt = 35.0;
+        
+        // Berechne Abweichung von der optimalen Ausrichtung
+        double azimuthDiff = Math.abs(azimuth - optimalAzimuth);
+        double tiltDiff = Math.abs(tilt - optimalTilt);
+        
+        // Faktor basierend auf der Abweichung (vereinfachte Berechnung)
+        double azimuthFactor = 1.0 - (azimuthDiff / 180.0) * 0.3;  // max 30% Verlust durch Azimuth
+        double tiltFactor = 1.0 - (tiltDiff / 90.0) * 0.2;         // max 20% Verlust durch Tilt
+        
+        return azimuthFactor * tiltFactor;
     }
 } 
