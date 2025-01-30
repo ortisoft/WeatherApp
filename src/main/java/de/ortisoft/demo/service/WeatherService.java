@@ -404,6 +404,38 @@ public class WeatherService {
             h1 {
                 margin-bottom: 5px;  /* Reduzierter Abstand nach unten */
             }
+
+            .chart-cell {
+                width: 150px;
+                padding: 5px !important;
+            }
+            .bar-container {
+                width: 140px;
+                height: 20px;
+                background-color: var(--border-color);
+                border-radius: 3px;
+                position: relative;
+            }
+            .bar {
+                position: absolute;
+                left: 0;
+                height: 100%;
+                background-color: #4CAF50;
+                border-radius: 3px;
+            }
+            @media (prefers-color-scheme: dark) {
+                .bar {
+                    background-color: #45a049;
+                }
+            }
+            .max-yield-info {
+                margin-top: 10px;
+                padding: 10px;
+                background-color: var(--card-bg);
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                color: var(--text-color);
+            }
         </style>
         </div>
         """);
@@ -463,6 +495,35 @@ public class WeatherService {
             // Füge Einstellungen hinzu
             solarInfo.append(createSolarSettingsHtml());
             
+            // Berechne beide maximalen Erträge
+            double maxTheoretical = calculateMaxTheoretical(kwp1, efficiency1, losses1, 
+                                                          kwp2, efficiency2, losses2);
+
+            // Finde die maximale Sonnenhöhe des Tages
+            double maxSunHeight = 0;
+            for (int hour = 0; hour < 24; hour++) {
+                double sunHeight = calculateSunHeight(lat, LocalDate.now(), hour);
+                maxSunHeight = Math.max(maxSunHeight, sunHeight);
+            }
+
+            // Berechne die maximale theoretische Strahlung bei klarem Himmel
+            double maxClearSkyRadiation = 1000.0 * Math.sin(Math.toRadians(maxSunHeight));
+
+            // Berechne den maximalen Ertrag basierend auf der maximalen Sonnenhöhe
+            double maxDayYield1 = calculateHourlyYield(maxClearSkyRadiation, efficiency1, losses1) * kwp1;
+            double maxDayYield2 = calculateHourlyYield(maxClearSkyRadiation, efficiency2, losses2) * kwp2;
+            double maxDayTotal = maxDayYield1 + maxDayYield2;
+
+            solarInfo.append(String.format("""
+                <div class="max-theoretical">
+                    <h3>Maximaler Anlagenertrag</h3>
+                    <div class="max-yield-info">
+                        <div>Maximaler theoretischer Stundenertrag unter STC-Bedingungen (1000 W/m², 25°C): %.2f kWh</div>
+                        <div>Maximaler Stundenertrag bei maximaler Sonnenhöhe heute (%.1f°, %.0f W/m²): %.2f kWh</div>
+                    </div>
+                </div>
+                """, maxTheoretical, maxSunHeight, maxClearSkyRadiation, maxDayTotal));
+
             // Aktuelle Prognose
             solarInfo.append("""
                 <div class="current-solar">
@@ -1020,6 +1081,38 @@ public class WeatherService {
                     .or-divider {
                         color: var(--text-color);
                     }
+
+                    .chart-cell {
+                        width: 150px;
+                        padding: 5px !important;
+                    }
+                    .bar-container {
+                        width: 140px;
+                        height: 20px;
+                        background-color: var(--border-color);
+                        border-radius: 3px;
+                        position: relative;
+                    }
+                    .bar {
+                        position: absolute;
+                        left: 0;
+                        height: 100%;
+                        background-color: #4CAF50;
+                        border-radius: 3px;
+                    }
+                    @media (prefers-color-scheme: dark) {
+                        .bar {
+                            background-color: #45a049;
+                        }
+                    }
+                    .max-yield-info {
+                        margin-top: 10px;
+                        padding: 10px;
+                        background-color: var(--card-bg);
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        color: var(--text-color);
+                    }
                 </style>
             </head>
             <body>
@@ -1502,6 +1595,10 @@ public class WeatherService {
     private String generateHourlyRows(double lat, LocalDate date, double avgCloudCover,
                                     double kwp1, int azimuth1, int tilt1, double efficiency1, double losses1,
                                     double kwp2, int azimuth2, int tilt2, double efficiency2, double losses2) {
+        // Berechne maximalen theoretischen Stundenertrag (STC)
+        double maxTheoretical = calculateMaxTheoretical(kwp1, efficiency1, losses1,
+                                                      kwp2, efficiency2, losses2);
+        
         StringBuilder rows = new StringBuilder();
         for (int hour = 0; hour < 24; hour++) {
             double sunHeight = calculateSunHeight(lat, date, hour);
@@ -1512,13 +1609,15 @@ public class WeatherService {
                 double hourlyYield1 = calculateHourlyYield(hourlyRadiation1, efficiency1, losses1);
                 double hourlyYield2 = calculateHourlyYield(hourlyRadiation2, efficiency2, losses2);
                 
-                // Berechne min/max/avg Strahlung für die aktuelle Stunde
-                double baseRadiation = calculateHourlyRadiation(lat, date, hour, avgCloudCover, 180, 35);
                 double minHourlyRadiation = Math.min(hourlyRadiation1, hourlyRadiation2);
                 double maxHourlyRadiation = Math.max(hourlyRadiation1, hourlyRadiation2);
                 double avgHourlyRadiation = (hourlyRadiation1 + hourlyRadiation2) / 2.0;
                 
                 double hourlyTotal = (hourlyYield1 * kwp1) + (hourlyYield2 * kwp2);
+                
+                // Berechne Balkenbreite (0-140px)
+                double barWidthCalc = (hourlyTotal / maxTheoretical) * 140.0;
+                int barWidth = (int) Math.round(barWidthCalc);
                 
                 rows.append(String.format("""
                     <tr>
@@ -1531,17 +1630,19 @@ public class WeatherService {
                         <td>%.3f kWh/kWp</td>
                         <td>%.2f kWh</td>
                         <td>%.2f kWh</td>
+                        <td class="chart-cell">
+                            <div class="bar-container">
+                                <div class="bar" style="width: %dpx;"></div>
+                            </div>
+                        </td>
                     </tr>
                     """,
-                    hour,
-                    sunHeight,
-                    avgCloudCover,
+                    hour, sunHeight, avgCloudCover,
                     minHourlyRadiation, maxHourlyRadiation, avgHourlyRadiation,
-                    hourlyYield1,
-                    hourlyYield1 * kwp1,
-                    hourlyYield2,
-                    hourlyYield2 * kwp2,
-                    hourlyTotal
+                    hourlyYield1, hourlyYield1 * kwp1,
+                    hourlyYield2, hourlyYield2 * kwp2,
+                    hourlyTotal,
+                    barWidth
                 ));
             }
         }
@@ -1666,5 +1767,17 @@ public class WeatherService {
         double tiltFactor = 1.0 - (tiltDiff / 90.0) * 0.2;         // max 20% Verlust durch Tilt
         
         return azimuthFactor * tiltFactor;
+    }
+
+    private double calculateMaxTheoretical(double kwp1, double efficiency1, double losses1,
+                                     double kwp2, double efficiency2, double losses2) {
+        // STC-Bedingungen: 1000 W/m², 25°C
+        double maxRadiation = 1000.0;
+        
+        // Berechne maximalen Ertrag für beide Anlagen unter STC
+        double maxYield1 = calculateHourlyYield(maxRadiation, efficiency1, losses1) * kwp1;
+        double maxYield2 = calculateHourlyYield(maxRadiation, efficiency2, losses2) * kwp2;
+        
+        return maxYield1 + maxYield2;
     }
 } 
