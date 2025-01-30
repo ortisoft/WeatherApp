@@ -539,7 +539,7 @@ public class WeatherService {
                     <h3>Maximaler Anlagenertrag</h3>
                     <div class="max-yield-info">
                         <div>Maximaler theoretischer Stundenertrag unter STC-Bedingungen (1000 W/m², 25°C): %.2f kWh</div>
-                        <div>Maximaler Stundenertrag bei optimaler Ausrichtung (180° (Süd)) und Neigung (35°) sowie maximaler Sonnenhöhe heute (%.1f°, %.0f W/m²): %.2f kWh</div>
+                        <div>Maximaler Stundenertrag bei optimaler Ausrichtung (180° (Süd)) und Neigung (35°), klarem Himmel sowie maximaler Sonnenhöhe heute (%.1f°, %.0f W/m²): %.2f kWh</div>
                     </div>
                 </div>
                 """, maxTheoretical, maxSunHeight, maxClearSkyRadiation, maxDayTotal));
@@ -1449,35 +1449,10 @@ public class WeatherService {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(map);
                     
-                    // Füge Dark Mode CSS hinzu
-                    const darkModeStyle = document.createElement('style');
-                    darkModeStyle.textContent = `
-                        @media (prefers-color-scheme: dark) {
-                            .leaflet-layer,
-                            .leaflet-control-zoom-in,
-                            .leaflet-control-zoom-out,
-                            .leaflet-control-attribution {
-                                filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-                            }
-                            .leaflet-container {
-                                background: #000;
-                            }
-                        }
-                    `;
-                    document.head.appendChild(darkModeStyle);
-                    
-                    // Marker für die Städte
-                    for (const [city, coord] of Object.entries(coordinates)) {
-                        L.marker([coord.lat, coord.lon])
-                            .bindPopup(city.charAt(0).toUpperCase() + city.slice(1))
-                            .addTo(map)
-                            .on('click', () => {
-                                loadWeatherData(coord.lat, coord.lon, window.currentKwp1 || 9.6, window.currentKwp2 || 9.6);
-                            });
-                    }
+                    // Marker initialisieren, aber noch nicht zur Karte hinzufügen
+                    let marker = null;
                     
                     // Klick-Handler für die Karte
-                    let marker = L.marker([51.165691, 10.451526]).addTo(map);
                     map.on('click', function(e) {
                         const lat = e.latlng.lat;
                         const lon = e.latlng.lng;
@@ -1493,21 +1468,31 @@ public class WeatherService {
                         loadWeatherData(lat, lon, window.currentKwp1 || 9.6, window.currentKwp2 || 9.6);
                     });
 
-                    // Am Ende des HTML-Teils, vor dem ersten loadWeatherData-Aufruf:
-                    // Versuche zuerst den aktuellen Standort zu ermitteln
+                    // Standort-Initialisierung
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
                             position => {
-                                loadWeatherData(position.coords.latitude, position.coords.longitude, 4.8, 4.8);
+                                const lat = position.coords.latitude;
+                                const lon = position.coords.longitude;
+                                if (marker) {
+                                    map.removeLayer(marker);
+                                }
+                                marker = L.marker([lat, lon])
+                                    .addTo(map)
+                                    .bindPopup('Ihr Standort')
+                                    .openPopup();
+                                loadWeatherData(lat, lon, 4.8, 4.8);
                             },
                             error => {
                                 // Fallback auf Berlin bei Fehler
-                                loadWeatherData(coordinates['berlin'].lat, coordinates['berlin'].lon, 4.8, 4.8);
+                                const berlin = coordinates['berlin'];
+                                marker = L.marker([berlin.lat, berlin.lon])
+                                    .addTo(map)
+                                    .bindPopup('Berlin')
+                                    .openPopup();
+                                loadWeatherData(berlin.lat, berlin.lon, 4.8, 4.8);
                             }
                         );
-                    } else {
-                        // Fallback auf Berlin wenn Geolocation nicht unterstützt wird
-                        loadWeatherData(coordinates['berlin'].lat, coordinates['berlin'].lon, 4.8, 4.8);
                     }
 
                     function handleKeyPress(event) {
