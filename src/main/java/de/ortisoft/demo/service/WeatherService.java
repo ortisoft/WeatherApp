@@ -544,30 +544,6 @@ public class WeatherService {
                 </div>
                 """, maxTheoretical, maxSunHeight, maxClearSkyRadiation, maxDayTotal));
 
-            // Aktuelle Prognose
-            solarInfo.append("""
-                <div class="current-solar">
-                    <h3>Aktuelle Prognose*</h3>
-                    <table>
-                        <tr>
-                            <th>Uhrzeit</th>
-                            <th>Sonnenhöhe</th>
-                            <th>Bewölkung</th>
-                            <th>Strahlung</th>
-                            <th>Anlage 1</th>
-                            <th>kWh</th>
-                            <th>Anlage 2</th>
-                            <th>kWh</th>
-                            <th>Gesamt</th>
-                            <th>Auslastung</th>
-                        </tr>
-                        %s
-                    </table>
-                </div>
-                """.formatted(generateHourlyRows(lat, LocalDate.now(), currentCloudCover,
-                    kwp1, azimuth1, tilt1, efficiency1, losses1,
-                    kwp2, azimuth2, tilt2, efficiency2, losses2,
-                    maxSunHeight)));  // Übergebe maxSunHeight
 
             // Füge Vorhersage hinzu
             solarInfo.append("""
@@ -651,9 +627,9 @@ public class WeatherService {
                             dayName, dateStr,
                             avgCloudCover,
                             calculateMinRadiation(lat, date, avgCloudCover, azimuth1, tilt1), maxRadiation, avgRadiation,
-                            kwp1, dailyYield1 * kwp1,
-                            kwp2, dailyYield2 * kwp2,
-                            (dailyYield1 * kwp1) + (dailyYield2 * kwp2),
+                            kwp1, dailyYield1,
+                            kwp2, dailyYield2,
+                            dailyYield1 + dailyYield2,
                             date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
                             generateHourlyRows(lat, date, avgCloudCover, 
                                 kwp1, azimuth1, tilt1, efficiency1, losses1,
@@ -766,8 +742,11 @@ public class WeatherService {
         // 1. Umrechnung von W/m² in kWh/m²
         double kwhPerM2 = radiation / 1000.0;  // Eine Stunde = 1/1000 kWh/W
         
-        // 2. Anwendung von Wirkungsgrad und Verlusten
-        return kwhPerM2 * (efficiency/100.0) * (1.0 - losses/100.0);
+        // 2. Umrechnung von kWh/m² in kWh/kWp (1 kWp ≈ 5 m²)
+        double kwhPerKwp = kwhPerM2 * 5.0;
+        
+        // 3. Anwendung von Wirkungsgrad und Verlusten
+        return kwhPerKwp * (efficiency/100.0) * (1.0 - losses/100.0);
     }
 
     private double calculateHourlyRadiation(double lat, LocalDate date, int hour, double cloudCover, int azimuth, int tilt) {
