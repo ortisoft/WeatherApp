@@ -412,19 +412,43 @@ public class WeatherService {
             .bar-container {
                 width: 140px;
                 height: 20px;
-                background-color: var(--border-color);
+                background-color: #f0f0f0;  // Hellgrauer Hintergrund für STC-Maximum
                 border-radius: 3px;
                 position: relative;
+                overflow: hidden;
             }
-            .bar {
+            .bar-max-day {
                 position: absolute;
                 left: 0;
                 height: 100%;
-                background-color: #4CAF50;
+                background-color: #e0e0e0;  // Helleres Grau für maximalen Tagesertrag
+                border-radius: 3px;
+            }
+            .bar-max {
+                position: absolute;
+                left: 0;
+                height: 100%;
+                background-color: #ccc;  // Grau für sonnenhöhenbasiertes Maximum
+                border-radius: 3px;
+            }
+            .bar-current {
+                position: absolute;
+                left: 0;
+                height: 100%;
+                background-color: #4CAF50;  // Grün für aktuellen Ertrag
                 border-radius: 3px;
             }
             @media (prefers-color-scheme: dark) {
-                .bar {
+                .bar-container {
+                    background-color: #2a2a2a;
+                }
+                .bar-max-day {
+                    background-color: #3a3a3a;
+                }
+                .bar-max {
+                    background-color: #444;
+                }
+                .bar-current {
                     background-color: #45a049;
                 }
             }
@@ -500,11 +524,7 @@ public class WeatherService {
                                                           kwp2, efficiency2, losses2);
 
             // Finde die maximale Sonnenhöhe des Tages
-            double maxSunHeight = 0;
-            for (int hour = 0; hour < 24; hour++) {
-                double sunHeight = calculateSunHeight(lat, LocalDate.now(), hour);
-                maxSunHeight = Math.max(maxSunHeight, sunHeight);
-            }
+            final double maxSunHeight = calculateMaxSunHeight(lat, LocalDate.now());
 
             // Berechne die maximale theoretische Strahlung bei klarem Himmel
             double maxClearSkyRadiation = 1000.0 * Math.sin(Math.toRadians(maxSunHeight));
@@ -519,7 +539,7 @@ public class WeatherService {
                     <h3>Maximaler Anlagenertrag</h3>
                     <div class="max-yield-info">
                         <div>Maximaler theoretischer Stundenertrag unter STC-Bedingungen (1000 W/m², 25°C): %.2f kWh</div>
-                        <div>Maximaler Stundenertrag bei maximaler Sonnenhöhe heute (%.1f°, %.0f W/m²): %.2f kWh</div>
+                        <div>Maximaler Stundenertrag bei optimaler Ausrichtung (180° (Süd)) und Neigung (35°) sowie maximaler Sonnenhöhe heute (%.1f°, %.0f W/m²): %.2f kWh</div>
                     </div>
                 </div>
                 """, maxTheoretical, maxSunHeight, maxClearSkyRadiation, maxDayTotal));
@@ -530,61 +550,24 @@ public class WeatherService {
                     <h3>Aktuelle Prognose*</h3>
                     <table>
                         <tr>
-                            <th>Anlage</th>
+                            <th>Uhrzeit</th>
+                            <th>Sonnenhöhe</th>
+                            <th>Bewölkung</th>
                             <th>Strahlung</th>
-                            <th>Momentanleistung</th>
-                            <th>Tagesertrag bisher</th>
+                            <th>Anlage 1</th>
+                            <th>kWh</th>
+                            <th>Anlage 2</th>
+                            <th>kWh</th>
+                            <th>Gesamt</th>
+                            <th>Auslastung</th>
                         </tr>
-                """);
-
-            // Aktuelle Werte für Anlage 1
-            solarInfo.append(String.format("""
-                <tr>
-                    <td>Anlage 1 (%.1f kWp)</td>
-                    <td>%.0f W/m²</td>
-                    <td>%.1f kW</td>
-                    <td>%.1f kWh</td>
-                </tr>
-                """,
-                kwp1,
-                getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1),
-                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1, kwp1),
-                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth1, tilt1, kwp1, efficiency1, losses1, LocalDateTime.now().getHour())
-            ));
-
-            // Aktuelle Werte für Anlage 2
-            solarInfo.append(String.format("""
-                <tr>
-                    <td>Anlage 2 (%.1f kWp)</td>
-                    <td>%.0f W/m²</td>
-                    <td>%.1f kW</td>
-                    <td>%.1f kWh</td>
-                </tr>
-                """,
-                kwp2,
-                getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2),
-                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2, kwp2),
-                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth2, tilt2, kwp2, efficiency2, losses2, LocalDateTime.now().getHour())
-            ));
-
-            // Gesamtwerte
-            solarInfo.append(String.format("""
-                <tr class="total-row">
-                    <td>Gesamt</td>
-                    <td>Ø %.0f W/m²</td>
-                    <td>%.1f kW</td>
-                    <td>%.1f kWh</td>
-                </tr>
-                </table>
+                        %s
+                    </table>
                 </div>
-                """,
-                (getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1) +
-                 getCurrentRadiation(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2)) / 2.0,
-                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth1, tilt1, kwp1) +
-                getCurrentPower(lat, LocalDate.now(), LocalDateTime.now().getHour(), currentCloudCover, azimuth2, tilt2, kwp2),
-                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth1, tilt1, kwp1, efficiency1, losses1, LocalDateTime.now().getHour()) +
-                getCurrentDayYield(lat, LocalDate.now(), currentCloudCover, azimuth2, tilt2, kwp2, efficiency2, losses2, LocalDateTime.now().getHour())
-            ));
+                """.formatted(generateHourlyRows(lat, LocalDate.now(), currentCloudCover,
+                    kwp1, azimuth1, tilt1, efficiency1, losses1,
+                    kwp2, azimuth2, tilt2, efficiency2, losses2,
+                    maxSunHeight)));  // Übergebe maxSunHeight
 
             // Füge Vorhersage hinzu
             solarInfo.append("""
@@ -674,7 +657,8 @@ public class WeatherService {
                             date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
                             generateHourlyRows(lat, date, avgCloudCover, 
                                 kwp1, azimuth1, tilt1, efficiency1, losses1,
-                                kwp2, azimuth2, tilt2, efficiency2, losses2)
+                                kwp2, azimuth2, tilt2, efficiency2, losses2,
+                                maxSunHeight)
                         ));
                     });
             }
@@ -1089,19 +1073,43 @@ public class WeatherService {
                     .bar-container {
                         width: 140px;
                         height: 20px;
-                        background-color: var(--border-color);
+                        background-color: #f0f0f0;  // Hellgrauer Hintergrund für STC-Maximum
                         border-radius: 3px;
                         position: relative;
+                        overflow: hidden;
                     }
-                    .bar {
+                    .bar-max-day {
                         position: absolute;
                         left: 0;
                         height: 100%;
-                        background-color: #4CAF50;
+                        background-color: #e0e0e0;  // Helleres Grau für maximalen Tagesertrag
+                        border-radius: 3px;
+                    }
+                    .bar-max {
+                        position: absolute;
+                        left: 0;
+                        height: 100%;
+                        background-color: #ccc;  // Grau für sonnenhöhenbasiertes Maximum
+                        border-radius: 3px;
+                    }
+                    .bar-current {
+                        position: absolute;
+                        left: 0;
+                        height: 100%;
+                        background-color: #4CAF50;  // Grün für aktuellen Ertrag
                         border-radius: 3px;
                     }
                     @media (prefers-color-scheme: dark) {
-                        .bar {
+                        .bar-container {
+                            background-color: #2a2a2a;
+                        }
+                        .bar-max-day {
+                            background-color: #3a3a3a;
+                        }
+                        .bar-max {
+                            background-color: #444;
+                        }
+                        .bar-current {
                             background-color: #45a049;
                         }
                     }
@@ -1157,13 +1165,11 @@ public class WeatherService {
                 
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                 <script>
-                    // Am Anfang des JavaScript-Teils, wo die anderen Variablen definiert sind:
+                    // Am Anfang des JavaScript-Teils:
                     let lastLat, lastLon;
                     let currentKwp1 = 4.8, currentKwp2 = 4.8;
-                    let currentEfficiency1 = 20.0, currentEfficiency2 = 20.0;  // Neue Variablen
-                    let currentLosses1 = 14.0, currentLosses2 = 14.0;         // Neue Variablen
-
-                    // Im JavaScript-Teil, füge eine Variable für den aktuellen Tab hinzu und aktualisiere die openTab-Funktion:
+                    let currentEfficiency1 = 20.0, currentEfficiency2 = 20.0;
+                    let currentLosses1 = 14.0, currentLosses2 = 14.0;
                     let currentTab = 'location';  // Initialisiere mit dem Standard-Tab
 
                     function openTab(tabName) {
@@ -1594,7 +1600,8 @@ public class WeatherService {
 
     private String generateHourlyRows(double lat, LocalDate date, double avgCloudCover,
                                     double kwp1, int azimuth1, int tilt1, double efficiency1, double losses1,
-                                    double kwp2, int azimuth2, int tilt2, double efficiency2, double losses2) {
+                                    double kwp2, int azimuth2, int tilt2, double efficiency2, double losses2,
+                                    double maxSunHeight) {  // Neuer Parameter
         // Berechne maximalen theoretischen Stundenertrag (STC)
         double maxTheoretical = calculateMaxTheoretical(kwp1, efficiency1, losses1,
                                                       kwp2, efficiency2, losses2);
@@ -1615,9 +1622,22 @@ public class WeatherService {
                 
                 double hourlyTotal = (hourlyYield1 * kwp1) + (hourlyYield2 * kwp2);
                 
-                // Berechne Balkenbreite (0-140px)
-                double barWidthCalc = (hourlyTotal / maxTheoretical) * 140.0;
-                int barWidth = (int) Math.round(barWidthCalc);
+                // Berechne den maximalen Ertrag für diese Stunde basierend auf der Sonnenhöhe
+                double maxRadiationForHour = 1000.0 * Math.sin(Math.toRadians(Math.max(0, sunHeight)));
+                double maxYield1ForHour = calculateHourlyYield(maxRadiationForHour, efficiency1, losses1) * kwp1;
+                double maxYield2ForHour = calculateHourlyYield(maxRadiationForHour, efficiency2, losses2) * kwp2;
+                double maxTotalForHour = maxYield1ForHour + maxYield2ForHour;
+                
+                // Berechne den maximalen Tagesertrag (wie in der Übersicht)
+                double maxDayRadiation = 1000.0 * Math.sin(Math.toRadians(maxSunHeight));
+                double maxDayYield1 = calculateHourlyYield(maxDayRadiation, efficiency1, losses1) * kwp1;
+                double maxDayYield2 = calculateHourlyYield(maxDayRadiation, efficiency2, losses2) * kwp2;
+                double maxDayTotal = maxDayYield1 + maxDayYield2;
+                
+                // Berechne die Balkenbreiten (0-140px)
+                double currentWidth = (hourlyTotal / maxTheoretical) * 140.0;
+                double maxHourWidth = (maxTotalForHour / maxTheoretical) * 140.0;
+                double maxDayWidth = (maxDayTotal / maxTheoretical) * 140.0;
                 
                 rows.append(String.format("""
                     <tr>
@@ -1632,7 +1652,9 @@ public class WeatherService {
                         <td>%.2f kWh</td>
                         <td class="chart-cell">
                             <div class="bar-container">
-                                <div class="bar" style="width: %dpx;"></div>
+                                <div class="bar-max" style="width: %.0fpx;"></div>
+                                <div class="bar-max-day" style="width: %.0fpx;"></div>
+                                <div class="bar-current" style="width: %.0fpx;"></div>
                             </div>
                         </td>
                     </tr>
@@ -1642,7 +1664,7 @@ public class WeatherService {
                     hourlyYield1, hourlyYield1 * kwp1,
                     hourlyYield2, hourlyYield2 * kwp2,
                     hourlyTotal,
-                    barWidth
+                    maxHourWidth, maxDayWidth, currentWidth   // Nur die Balkenbreiten
                 ));
             }
         }
@@ -1779,5 +1801,14 @@ public class WeatherService {
         double maxYield2 = calculateHourlyYield(maxRadiation, efficiency2, losses2) * kwp2;
         
         return maxYield1 + maxYield2;
+    }
+
+    private double calculateMaxSunHeight(double lat, LocalDate date) {
+        double maxHeight = 0;
+        for (int hour = 0; hour < 24; hour++) {
+            double sunHeight = calculateSunHeight(lat, date, hour);
+            maxHeight = Math.max(maxHeight, sunHeight);
+        }
+        return maxHeight;
     }
 } 
