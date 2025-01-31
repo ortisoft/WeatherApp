@@ -347,14 +347,16 @@ public class WeatherService {
             }
             .location-select button {
                 padding: 8px 16px;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
                 background-color: var(--button-bg);
                 color: var(--button-text);
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
             }
             .location-select button:hover {
-                background-color: var(--button-hover);
+                background-color: var(--button-hover-bg);
             }
             .or-divider {
                 color: var(--text-color);
@@ -459,6 +461,26 @@ public class WeatherService {
                 border: 1px solid var(--border-color);
                 border-radius: 4px;
                 color: var(--text-color);
+            }
+            
+            button {
+                padding: 8px 16px;
+                background-color: var(--button-bg);
+                color: var(--button-text);
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+            }
+            
+            button:hover {
+                background-color: var(--button-hover-bg);
+            }
+            
+            /* Entferne spezifische Button-Styles aus dem Solar-Tab */
+            .solar-settings button {
+                margin: 10px 0;
             }
         </style>
         </div>
@@ -1032,17 +1054,64 @@ public class WeatherService {
                     }
                     .location-select button {
                         padding: 8px 16px;
-                        border: none;
-                        border-radius: 4px;
-                        cursor: pointer;
                         background-color: var(--button-bg);
                         color: var(--button-text);
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        transition: background-color 0.2s;
                     }
                     .location-select button:hover {
-                        background-color: var(--button-hover);
+                        background-color: var(--button-hover-bg);
                     }
                     .or-divider {
                         color: var(--text-color);
+                    }
+                    .current-weather table,
+                    .current-solar table,
+                    .forecast table {
+                        background-color: var(--card-bg);
+                        border: 1px solid var(--border-color);
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 20px 0;
+                    }
+
+                    .current-weather th,
+                    .current-solar th,
+                    .forecast th {
+                        background-color: var(--header-bg);
+                        color: var(--text-color);
+                        border-bottom: 2px solid var(--border-color);
+                        padding: 12px 20px;  /* Erhöhtes Padding */
+                        text-align: left;
+                    }
+
+                    .current-weather td,
+                    .current-solar td,
+                    .forecast td {
+                        border: 1px solid var(--border-color);
+                        padding: 12px 20px;  /* Erhöhtes Padding */
+                        text-align: left;
+                    }
+
+                    .subtitle {
+                        color: var(--subtitle-color);
+                        font-size: 0.9em;
+                        font-style: italic;
+                        margin-top: 0;  /* Kein Abstand nach oben */
+                        margin-bottom: 25px;  /* Abstand zum nächsten Element */
+                    }
+                    
+                    .selected-location {
+                        color: var(--subtitle-color);
+                        margin-top: 20px;  /* Mehr Abstand nach oben */
+                        margin-bottom: 15px;  /* Konsistenter Abstand nach unten */
+                    }
+
+                    h1 {
+                        margin-bottom: 5px;  /* Reduzierter Abstand nach unten */
                     }
 
                     .chart-cell {
@@ -1099,6 +1168,26 @@ public class WeatherService {
                         border: 1px solid var(--border-color);
                         border-radius: 4px;
                         color: var(--text-color);
+                    }
+                    
+                    button {
+                        padding: 8px 16px;
+                        background-color: var(--button-bg);
+                        color: var(--button-text);
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        transition: background-color 0.2s;
+                    }
+                    
+                    button:hover {
+                        background-color: var(--button-hover-bg);
+                    }
+                    
+                    /* Entferne spezifische Button-Styles aus dem Solar-Tab */
+                    .solar-settings button {
+                        margin: 10px 0;
                     }
                 </style>
             </head>
@@ -1434,11 +1523,36 @@ public class WeatherService {
                     // Karte initialisieren
                     const map = L.map('map').setView([51.165691, 10.451526], 6);
                     
-                    // Nur ein Layer für beide Modi
+                    // Standard OpenStreetMap Layer
                     const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(map);
+
+                    // Dark Mode Styles für die Karte
+                    const darkModeStyles = `
+                        .leaflet-tile {
+                            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+                        }
+                        .leaflet-container {
+                            background: #303030;
+                        }
+                    `;
+
+                    // Style-Element erstellen und dem Head hinzufügen
+                    const styleElement = document.createElement('style');
+                    styleElement.type = 'text/css';
+                    
+                    // Dark Mode basierend auf System-Einstellung
+                    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        styleElement.textContent = darkModeStyles;
+                    }
+                    document.head.appendChild(styleElement);
+                    
+                    // Auf Änderungen des System-Themes reagieren
+                    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                        styleElement.textContent = e.matches ? darkModeStyles : '';
+                    });
                     
                     // Marker initialisieren, aber noch nicht zur Karte hinzufügen
                     let marker = null;
