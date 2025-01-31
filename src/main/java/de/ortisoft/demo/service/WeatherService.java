@@ -1120,7 +1120,7 @@ public class WeatherService {
                                 <input type="text" id="city" placeholder="Stadt eingeben (z.B. Berlin)" onkeypress="handleKeyPress(event)">
                                 <button onclick="getWeatherByCity()">Stadt suchen</button>
                                 <span class="or-divider">oder</span>
-                                <button onclick="updateWeather()">Aktuellen Standort verwenden</button>
+                                <button onclick="useCurrentLocation()">Aktuellen Standort verwenden</button>
                             </div>
                         </div>
                         
@@ -1390,9 +1390,21 @@ public class WeatherService {
                         }
                         
                         if (coordinates[city]) {
-                            loadWeatherData(coordinates[city].lat, coordinates[city].lon, window.currentKwp1 || 9.6, window.currentKwp2 || 9.6);
+                            // Setze den Marker auf die gefundene Stadt
+                            const lat = coordinates[city].lat;
+                            const lon = coordinates[city].lon;
+                            
+                            if (marker) {
+                                marker.setLatLng([lat, lon]);
+                            } else {
+                                marker = L.marker([lat, lon]).addTo(map);
+                            }
+                            map.setView([lat, lon], 13);
+                            
+                            // Verwende updateWeather für die einheitliche Behandlung
+                            updateWeather();
                         } else {
-                            showError('Stadt nicht gefunden. Bitte geben Sie eine deutsche Großstadt ein.');
+                            alert('Stadt nicht gefunden. Bitte geben Sie eine deutsche Großstadt ein.');
                         }
                     }
 
@@ -1493,6 +1505,33 @@ public class WeatherService {
                                 details.style.display = 'none';
                                 if (icon) icon.style.transform = 'rotate(0deg)';
                             }
+                        }
+                    }
+
+                    // Im JavaScript-Teil der getWeatherAndForecast Methode:
+                    function useCurrentLocation() {
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                                function(position) {
+                                    const lat = position.coords.latitude;
+                                    const lon = position.coords.longitude;
+                                    
+                                    // Marker erstellen oder aktualisieren
+                                    if (marker) {
+                                        marker.setLatLng([lat, lon]);
+                                    } else {
+                                        marker = L.marker([lat, lon]).addTo(map);
+                                    }
+                                    
+                                    map.setView([lat, lon], 13);
+                                    updateWeather();
+                                },
+                                function(error) {
+                                    alert('Standortabfrage fehlgeschlagen: ' + error.message);
+                                }
+                            );
+                        } else {
+                            alert('Geolocation wird von Ihrem Browser nicht unterstützt.');
                         }
                     }
                 </script>
